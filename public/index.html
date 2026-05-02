@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>🐱 PurrMetrics — VPS Dashboard</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🐱</text></svg>"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg-0: #0a0612;
+    --surface: rgba(255, 255, 255, 0.04);
+    --surface-hi: rgba(255, 255, 255, 0.08);
+    --border: rgba(255, 255, 255, 0.08);
+    --text: #f0e9ff;
+    --text-dim: #a89cc9;
+    --accent: #ff6ec7;
+    --accent-2: #8b5cf6;
+    --accent-3: #22d3ee;
+    --success: #4ade80;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--bg-0);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background:
+      radial-gradient(ellipse at 20% 10%, rgba(255, 110, 199, 0.15), transparent 50%),
+      radial-gradient(ellipse at 80% 80%, rgba(139, 92, 246, 0.18), transparent 50%),
+      radial-gradient(ellipse at 50% 50%, rgba(34, 211, 238, 0.08), transparent 60%);
+    z-index: -2;
+    animation: drift 20s ease-in-out infinite alternate;
+  }
+  @keyframes drift {
+    0% { transform: translate(0,0) scale(1); }
+    100% { transform: translate(-30px,20px) scale(1.1); }
+  }
+  .paws { position: fixed; inset: 0; pointer-events: none; z-index: -1; overflow: hidden; }
+  .paw {
+    position: absolute; opacity: 0.06;
+    animation: float 15s linear infinite;
+  }
+  @keyframes float {
+    0% { transform: translateY(100vh) rotate(0deg); }
+    100% { transform: translateY(-100px) rotate(360deg); }
+  }
+
+  /* ---------- HEADER ---------- */
+  header {
+    padding: 20px 40px;
+    backdrop-filter: blur(20px);
+    background: rgba(10, 6, 18, 0.6);
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .header-inner {
+    max-width: 1400px; margin: 0 auto;
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 20px; flex-wrap: wrap;
+  }
+  .logo {
+    display: flex; align-items: center; gap: 12px;
+    font-size: 22px; font-weight: 800; letter-spacing: -0.5px;
+  }
+  .logo-icon { font-size: 32px; animation: bob 3s ease-in-out infinite; }
+  @keyframes bob {
+    0%,100% { transform: translateY(0) rotate(-5deg); }
+    50% { transform: translateY(-4px) rotate(5deg); }
+  }
+  .logo span {
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+
+  .header-stats {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  }
+  .hstat {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    transition: all 0.3s;
+  }
+  .hstat:hover { background: var(--surface-hi); border-color: rgba(255,110,199,0.25); }
+  .hstat-icon { font-size: 18px; }
+  .hstat-text { display: flex; flex-direction: column; line-height: 1.1; }
+  .hstat-label {
+    font-size: 10px; color: var(--text-dim);
+    text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600;
+  }
+  .hstat-value {
+    font-size: 13px; font-weight: 700; font-family: 'JetBrains Mono', monospace;
+    color: var(--text); margin-top: 2px;
+  }
+  .status-pill {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 14px;
+    background: rgba(74,222,128,0.1);
+    border: 1px solid rgba(74,222,128,0.3);
+    border-radius: 99px;
+    font-size: 12px; font-weight: 700; color: var(--success);
+  }
+  .pulse {
+    width: 8px; height: 8px; background: var(--success); border-radius: 50%;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%,100% { box-shadow: 0 0 0 0 rgba(74,222,128,0.7); }
+    50% { box-shadow: 0 0 0 8px rgba(74,222,128,0); }
+  }
+
+  main { max-width: 1400px; margin: 0 auto; padding: 40px; }
+
+  .hero { text-align: center; margin-bottom: 45px; animation: fadeUp 0.8s ease; }
+  .hero h1 {
+    font-size: clamp(32px, 5vw, 52px); font-weight: 800;
+    letter-spacing: -1.5px; margin-bottom: 12px;
+    background: linear-gradient(135deg, #fff 0%, var(--accent) 50%, var(--accent-2) 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .hero p { color: var(--text-dim); font-size: 16px; }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .grid {
+    display: grid; gap: 24px; margin-bottom: 24px;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  }
+
+  .card {
+    background: var(--surface);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 26px;
+    position: relative; overflow: hidden;
+    transition: transform 0.4s cubic-bezier(0.2,0.8,0.2,1), border-color 0.3s, box-shadow 0.3s;
+    animation: fadeUp 0.8s ease backwards;
+  }
+  .card:nth-child(1) { animation-delay: 0.05s; }
+  .card:nth-child(2) { animation-delay: 0.1s; }
+  .card:nth-child(3) { animation-delay: 0.15s; }
+  .card:nth-child(4) { animation-delay: 0.2s; }
+  .card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    opacity: 0; transition: opacity 0.3s;
+  }
+  .card:hover {
+    transform: translateY(-4px);
+    border-color: rgba(255,110,199,0.3);
+    box-shadow: 0 20px 60px -20px rgba(255,110,199,0.3);
+  }
+  .card:hover::before { opacity: 1; }
+
+  .card-head {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 18px;
+  }
+  .card-title {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 13px; font-weight: 600; color: var(--text-dim);
+    text-transform: uppercase; letter-spacing: 0.1em;
+  }
+  .card-icon { font-size: 22px; filter: drop-shadow(0 0 8px rgba(255,110,199,0.4)); }
+  .metric-value {
+    font-size: 36px; font-weight: 800; letter-spacing: -1px; margin-bottom: 4px;
+  }
+  .metric-sub { font-size: 13px; color: var(--text-dim); }
+
+  .progress {
+    margin-top: 18px; height: 8px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 99px; overflow: hidden; position: relative;
+  }
+  .progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    border-radius: 99px; width: 0%;
+    transition: width 1.2s cubic-bezier(0.2,0.8,0.2,1);
+    position: relative;
+  }
+  .progress-bar::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+    animation: shimmer 2s infinite;
+  }
+  @keyframes shimmer {
+    0% { transform: translateX(-100%); } 100% { transform: translateX(100%); }
+  }
+
+  /* ---- Bandwidth ---- */
+  .bandwidth-card { grid-column: 1 / -1; padding: 30px; }
+
+  .bw-header {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    margin-bottom: 20px; flex-wrap: wrap; gap: 20px;
+  }
+  .bw-stats { display: flex; gap: 40px; flex-wrap: wrap; margin-bottom: 20px; }
+  .bw-stat { display: flex; align-items: center; gap: 14px; }
+  .bw-stat-icon {
+    width: 48px; height: 48px; border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; flex-shrink: 0;
+  }
+  .bw-stat-icon.down {
+    background: linear-gradient(135deg, rgba(34,211,238,0.2), rgba(34,211,238,0.05));
+    border: 1px solid rgba(34,211,238,0.3); color: var(--accent-3);
+  }
+  .bw-stat-icon.up {
+    background: linear-gradient(135deg, rgba(255,110,199,0.2), rgba(255,110,199,0.05));
+    border: 1px solid rgba(255,110,199,0.3); color: var(--accent);
+  }
+  .bw-stat-label {
+    font-size: 11px; font-weight: 600; color: var(--text-dim);
+    text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 2px;
+  }
+  .bw-stat-value {
+    font-size: 22px; font-weight: 800; letter-spacing: -0.5px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .bw-stat-total { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+
+  /* Range tabs */
+  .range-tabs {
+    display: inline-flex;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 4px;
+    gap: 2px;
+  }
+  .range-tab {
+    padding: 8px 16px;
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.2,0.8,0.2,1);
+  }
+  .range-tab:hover { color: var(--text); }
+  .range-tab.active {
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: white;
+    box-shadow: 0 4px 14px -2px rgba(255,110,199,0.5);
+  }
+
+  /* Summary row */
+  .bw-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+    padding: 16px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+  }
+  .sum-item { text-align: center; }
+  .sum-label {
+    font-size: 10px; font-weight: 600; color: var(--text-dim);
+    text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 6px;
+  }
+  .sum-value {
+    font-size: 16px; font-weight: 800; font-family: 'JetBrains Mono', monospace;
+  }
+  .sum-value.down { color: var(--accent-3); }
+  .sum-value.up   { color: var(--accent); }
+
+  .chart-wrap { position: relative; height: 320px; margin-top: 10px; }
+  .chart-empty {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 10px; color: var(--text-dim);
+  }
+  .chart-empty .big { font-size: 48px; }
+  .chart-empty .txt { font-size: 13px; }
+
+  /* System info */
+  .sys-info {
+    background: var(--surface); backdrop-filter: blur(20px);
+    border: 1px solid var(--border); border-radius: 20px; padding: 26px;
+    margin-top: 24px;
+  }
+  .sys-info h3 {
+    font-size: 13px; font-weight: 600; color: var(--text-dim);
+    text-transform: uppercase; letter-spacing: 0.1em;
+    margin-bottom: 18px; display: flex; align-items: center; gap: 10px;
+  }
+  .sys-grid {
+    display: grid; gap: 18px;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  }
+  .sys-item-label {
+    font-size: 11px; color: var(--text-dim);
+    text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px;
+  }
+  .sys-item-value {
+    font-size: 15px; font-weight: 600; font-family: 'JetBrains Mono', monospace;
+    color: var(--text); word-break: break-all;
+  }
+
+  footer { text-align: center; padding: 30px; color: var(--text-dim); font-size: 13px; }
+  footer .heart { color: var(--accent); }
+
+  @media (max-width: 680px) {
+    header { padding: 14px 18px; }
+    main { padding: 20px; }
+    .bw-stats { gap: 20px; }
+    .bw-stat-value { font-size: 18px; }
+    .metric-value { font-size: 28px; }
+    .range-tab { padding: 6px 12px; font-size: 11px; }
+    .hstat { padding: 6px 10px; }
+    .hstat-value { font-size: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="paws" id="paws"></div>
+
+<header>
+  <div class="header-inner">
+    <div class="logo">
+      <span class="logo-icon">🐱</span>
+      <div>Purr<span>Metrics</span></div>
+    </div>
+    <!-- Only logo in header, stats moved to hero -->
+  </div>
+</header>
+
+<main>
+  <div class="hero">
+    <h1>Your VPS, purring along 🐾</h1>
+    <p>Real-time system stats with a dash of feline charm</p>
+    <!-- OS / Uptime / Live pill — below hero text -->
+    <div class="header-stats" style="justify-content:center; margin-top:20px;">
+      <div class="hstat">
+        <span class="hstat-icon" id="os-icon">🐧</span>
+        <div class="hstat-text">
+          <span class="hstat-label">OS</span>
+          <span class="hstat-value" id="h-os">—</span>
+        </div>
+      </div>
+      <div class="hstat">
+        <span class="hstat-icon">😺</span>
+        <div class="hstat-text">
+          <span class="hstat-label">Uptime</span>
+          <span class="hstat-value" id="h-uptime">—</span>
+        </div>
+      </div>
+      <div class="status-pill">
+        <div class="pulse"></div>
+        <span>Live</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bandwidth Card -->
+  <div class="grid" style="grid-template-columns: 1fr;">
+    <div class="card bandwidth-card">
+      <div class="bw-header">
+        <div class="card-title">
+          <span class="card-icon">🌐</span>
+          Network Bandwidth
+        </div>
+        <div class="range-tabs" role="tablist">
+          <button class="range-tab active" data-range="live">LIVE</button>
+          <button class="range-tab" data-range="hour">1H</button>
+          <button class="range-tab" data-range="day">1D</button>
+          <button class="range-tab" data-range="week">7D</button>
+          <button class="range-tab" data-range="month">30D</button>
+        </div>
+      </div>
+
+      <div class="bw-stats">
+        <div class="bw-stat">
+          <div class="bw-stat-icon down">⬇</div>
+          <div>
+            <div class="bw-stat-label">Inbound (now)</div>
+            <div class="bw-stat-value" id="rx-speed">0 B/s</div>
+            <div class="bw-stat-total" id="rx-total">Total: —</div>
+          </div>
+        </div>
+        <div class="bw-stat">
+          <div class="bw-stat-icon up">⬆</div>
+          <div>
+            <div class="bw-stat-label">Outbound (now)</div>
+            <div class="bw-stat-value" id="tx-speed">0 B/s</div>
+            <div class="bw-stat-total" id="tx-total">Total: —</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bw-summary" id="bw-summary" style="display:none;">
+        <div class="sum-item">
+          <div class="sum-label">Period Down</div>
+          <div class="sum-value down" id="sum-rx">—</div>
+        </div>
+        <div class="sum-item">
+          <div class="sum-label">Period Up</div>
+          <div class="sum-value up" id="sum-tx">—</div>
+        </div>
+        <div class="sum-item">
+          <div class="sum-label">Peak Down</div>
+          <div class="sum-value down" id="peak-rx">—</div>
+        </div>
+        <div class="sum-item">
+          <div class="sum-label">Peak Up</div>
+          <div class="sum-value up" id="peak-tx">—</div>
+        </div>
+      </div>
+
+      <div class="chart-wrap">
+        <canvas id="bwChart"></canvas>
+        <div class="chart-empty" id="chart-empty" style="display:none;">
+          <div class="big">😺</div>
+          <div class="txt">No data yet for this range. Come back soon!</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Metric cards -->
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title"><span class="card-icon">🐾</span> CPU Usage</div></div>
+      <div class="metric-value" id="cpu-usage">—</div>
+      <div class="metric-sub" id="cpu-info">Loading…</div>
+      <div class="progress"><div class="progress-bar" id="cpu-bar"></div></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title"><span class="card-icon">🧶</span> Memory</div></div>
+      <div class="metric-value" id="mem-usage">—</div>
+      <div class="metric-sub" id="mem-info">Loading…</div>
+      <div class="progress"><div class="progress-bar" id="mem-bar"></div></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title"><span class="card-icon">🐟</span> Disk</div></div>
+      <div class="metric-value" id="disk-usage">—</div>
+      <div class="metric-sub" id="disk-info">Loading…</div>
+      <div class="progress"><div class="progress-bar" id="disk-bar"></div></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title"><span class="card-icon">😺</span> Uptime</div></div>
+      <div class="metric-value" id="uptime">—</div>
+      <div class="metric-sub">Since last reboot</div>
+    </div>
+  </div>
+
+  <!-- System Info -->
+  <div class="sys-info">
+    <h3><span>🖥️</span> System Information</h3>
+    <div class="sys-grid">
+      <div><div class="sys-item-label">Hostname</div><div class="sys-item-value" id="host">—</div></div>
+      <div><div class="sys-item-label">OS</div><div class="sys-item-value" id="os">—</div></div>
+      <div><div class="sys-item-label">Architecture</div><div class="sys-item-value" id="arch">—</div></div>
+      <div><div class="sys-item-label">CPU Model</div><div class="sys-item-value" id="cpu-model">—</div></div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  Made with <span class="heart">♥</span> and a lot of 🐱 • PurrMetrics
+</footer>
+
+<script>
+  // ── Floating paws ──────────────────────────────────────────────
+  const pawsEl = document.getElementById('paws');
+  const pawEmojis = ['🐾', '🐱', '😺', '😸'];
+  for (let i = 0; i < 15; i++) {
+    const p = document.createElement('div');
+    p.className = 'paw';
+    p.textContent = pawEmojis[Math.floor(Math.random() * pawEmojis.length)];
+    p.style.left = Math.random() * 100 + '%';
+    p.style.animationDuration = (10 + Math.random() * 20) + 's';
+    p.style.animationDelay = (Math.random() * -15) + 's';
+    p.style.fontSize = (18 + Math.random() * 20) + 'px';
+    pawsEl.appendChild(p);
+  }
+
+  // ── Helpers ────────────────────────────────────────────────────
+  function fmtBytes(b) {
+    if (!b || b < 0) b = 0;
+    const u = ['B', 'KB', 'MB', 'GB', 'TB'];
+    let i = 0;
+    while (b >= 1024 && i < u.length - 1) { b /= 1024; i++; }
+    return b.toFixed(i === 0 ? 0 : 2) + ' ' + u[i];
+  }
+  function fmtSpeed(bps) { return fmtBytes(bps) + '/s'; }
+  function fmtUptime(s) {
+    const d = Math.floor(s / 86400);
+    const h = Math.floor((s % 86400) / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    if (d > 0) return `${d}d ${h}h ${m}m`;
+    if (h > 0) return `${h}h ${m}m`;
+    return `${m}m`;
+  }
+
+  // ── currentRange — declared BEFORE chart so tick callbacks work ──
+  let currentRange = 'live';
+
+  // ── Live data store ────────────────────────────────────────────
+  const MAX_POINTS = 30;
+  const liveLabels = Array(MAX_POINTS).fill('');
+  const liveRx     = Array(MAX_POINTS).fill(0);
+  const liveTx     = Array(MAX_POINTS).fill(0);
+
+  const historyStore = {
+    live:  { labels: [...liveLabels], rx: [...liveRx], tx: [...liveTx] },
+    hour:  { labels: [], rx: [], tx: [] },
+    day:   { labels: [], rx: [], tx: [] },
+    week:  { labels: [], rx: [], tx: [] },
+    month: { labels: [], rx: [], tx: [] },
+  };
+
+  // ── Chart setup ────────────────────────────────────────────────
+  const ctx = document.getElementById('bwChart').getContext('2d');
+  const gradIn = ctx.createLinearGradient(0, 0, 0, 320);
+  gradIn.addColorStop(0, 'rgba(34, 211, 238, 0.4)');
+  gradIn.addColorStop(1, 'rgba(34, 211, 238, 0)');
+  const gradOut = ctx.createLinearGradient(0, 0, 0, 320);
+  gradOut.addColorStop(0, 'rgba(255, 110, 199, 0.4)');
+  gradOut.addColorStop(1, 'rgba(255, 110, 199, 0)');
+
+  const chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: [...liveLabels],
+      datasets: [
+        {
+          label: 'Inbound',
+          data: [...liveRx],
+          borderColor: '#22d3ee',
+          backgroundColor: gradIn,
+          borderWidth: 2.5,
+          fill: true,
+          tension: 0.4,
+          pointRadius: 0,
+          pointHoverRadius: 5,
+          pointHoverBackgroundColor: '#22d3ee',
+        },
+        {
+          label: 'Outbound',
+          data: [...liveTx],
+          borderColor: '#ff6ec7',
+          backgroundColor: gradOut,
+          borderWidth: 2.5,
+          fill: true,
+          tension: 0.4,
+          pointRadius: 0,
+          pointHoverRadius: 5,
+          pointHoverBackgroundColor: '#ff6ec7',
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 600, easing: 'easeOutQuart' },
+      interaction: { intersect: false, mode: 'index' },
+      plugins: {
+        legend: {
+          position: 'top',
+          align: 'end',
+          labels: {
+            color: '#a89cc9',
+            font: { family: 'Inter', size: 12, weight: '600' },
+            usePointStyle: true,
+            pointStyle: 'circle',
+            padding: 16
+          }
+        },
+        tooltip: {
+          backgroundColor: 'rgba(18,10,31,0.95)',
+          borderColor: 'rgba(255,255,255,0.1)',
+          borderWidth: 1,
+          titleColor: '#f0e9ff',
+          bodyColor: '#f0e9ff',
+          padding: 12,
+          cornerRadius: 10,
+          displayColors: true,
+          callbacks: {
+            label: (c) => `${c.dataset.label}: ${currentRange === 'live' ? fmtSpeed(c.parsed.y) : fmtBytes(c.parsed.y)}`
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: {
+            display: false,
+            color: '#a89cc9',
+            font: { family: 'JetBrains Mono', size: 10 },
+            maxTicksLimit: 8,
+            maxRotation: 0,
+          }
+        },
+        y: {
+          beginAtZero: true,
+          grid: { color: 'rgba(255,255,255,0.05)' },
+          ticks: {
+            color: '#a89cc9',
+            font: { family: 'JetBrains Mono', size: 11 },
+            callback: (v) => currentRange === 'live' ? fmtSpeed(v) : fmtBytes(v)
+          }
+        }
+      }
+    }
+  });
+
+  // ── Switch visible range ───────────────────────────────────────
+  function switchRange(range) {
+    const store   = historyStore[range];
+    const isEmpty = store.rx.length === 0 || store.rx.every(v => v === 0);
+
+    document.getElementById('chart-empty').style.display  = (isEmpty && range !== 'live') ? 'flex' : 'none';
+    document.getElementById('bw-summary').style.display   = range === 'live' ? 'none' : 'grid';
+    chart.options.scales.x.ticks.display                  = range !== 'live';
+
+    chart.data.labels           = [...store.labels];
+    chart.data.datasets[0].data = [...store.rx];
+    chart.data.datasets[1].data = [...store.tx];
+    chart.update('none');
+
+    if (range !== 'live') updateSummary(store.rx, store.tx);
+  }
+
+  function updateSummary(rxArr, txArr) {
+    const sumRx = rxArr.reduce((a, b) => a + b, 0);
+    const sumTx = txArr.reduce((a, b) => a + b, 0);
+    const pkRx  = Math.max(...rxArr, 0);
+    const pkTx  = Math.max(...txArr, 0);
+    document.getElementById('sum-rx').textContent  = fmtBytes(sumRx);
+    document.getElementById('sum-tx').textContent  = fmtBytes(sumTx);
+    document.getElementById('peak-rx').textContent = fmtBytes(pkRx);
+    document.getElementById('peak-tx').textContent = fmtBytes(pkTx);
+  }
+
+  // ── Fetch history from server ──────────────────────────────────
+  async function fetchHistory(range) {
+    try {
+      const r    = await fetch(`/api/bandwidth/${range}`);
+      const data = await r.json(); // array of { t, rx, tx }
+
+      if (!data.length) {
+        historyStore[range] = { labels: [], rx: [], tx: [] };
+        switchRange(range);
+        return;
+      }
+
+      const labels = data.map(p => {
+        const d = new Date(p.t);
+        if (range === 'hour')  return `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
+        if (range === 'day')   return `${d.getHours()}h`;
+        if (range === 'week')  return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()];
+        if (range === 'month') return `D${d.getDate()}`;
+        return '';
+      });
+
+      historyStore[range] = {
+        labels,
+        rx: data.map(p => p.rx),
+        tx: data.map(p => p.tx),
+      };
+      switchRange(range);
+    } catch (e) { console.error('fetchHistory:', e); }
+  }
+
+  // ── Tab click handler ──────────────────────────────────────────
+  document.querySelectorAll('.range-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.range-tab').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const range = btn.dataset.range;
+      currentRange = range;
+      if (range === 'live') {
+        switchRange('live');
+      } else {
+        fetchHistory(range);
+      }
+    });
+  });
+
+  // ── System fetch ───────────────────────────────────────────────
+  async function fetchSystem() {
+    try {
+      const r = await fetch('/api/system');
+      const d = await r.json();
+
+      // CPU
+      document.getElementById('cpu-usage').textContent = d.cpu.load + '%';
+      document.getElementById('cpu-info').textContent  = `${d.cpu.cores} cores @ ${d.cpu.speed} GHz`;
+      document.getElementById('cpu-bar').style.width   = d.cpu.load + '%';
+      document.getElementById('cpu-model').textContent = d.cpu.brand;
+
+      // Memory
+      document.getElementById('mem-usage').textContent = d.memory.percent + '%';
+      document.getElementById('mem-info').textContent  =
+        `${fmtBytes(d.memory.used)} / ${fmtBytes(d.memory.total)}`;
+      document.getElementById('mem-bar').style.width = d.memory.percent + '%';
+
+      // Disk
+      if (d.disk && d.disk.length) {
+        const main = d.disk[0];
+        document.getElementById('disk-usage').textContent = main.use.toFixed(1) + '%';
+        document.getElementById('disk-info').textContent  =
+          `${fmtBytes(main.used)} / ${fmtBytes(main.size)}`;
+        document.getElementById('disk-bar').style.width = main.use + '%';
+      }
+
+      // Uptime — card + hero pill
+      const ut = fmtUptime(d.uptime);
+      document.getElementById('uptime').textContent   = ut;
+      document.getElementById('h-uptime').textContent = ut;
+
+      // OS — card + hero pill
+      const osStr = `${d.os.distro} ${d.os.release}`;
+      document.getElementById('host').textContent  = d.os.hostname;
+      document.getElementById('os').textContent    = osStr;
+      document.getElementById('arch').textContent  = d.os.arch;
+      document.getElementById('h-os').textContent  = d.os.distro || osStr;
+
+      // OS emoji
+      const distro = (d.os.distro || '').toLowerCase();
+      document.getElementById('os-icon').textContent =
+        distro.includes('ubuntu') ? '🟠' :
+        distro.includes('debian') ? '🌀' :
+        distro.includes('arch')   ? '🏹' :
+        distro.includes('fedora') ? '🎩' :
+        distro.includes('centos') ? '🔴' : '🐧';
+
+    } catch (e) { console.error('fetchSystem:', e); }
+  }
+
+  // ── Network fetch — matches server's flat { rx_sec, tx_sec, rx_total, tx_total } ──
+  async function fetchNetwork() {
+    try {
+      const r    = await fetch('/api/network');
+      const data = await r.json();
+
+      document.getElementById('rx-speed').textContent = fmtSpeed(data.rx_sec);
+      document.getElementById('tx-speed').textContent = fmtSpeed(data.tx_sec);
+      document.getElementById('rx-total').textContent = 'Total: ' + fmtBytes(data.rx_total);
+      document.getElementById('tx-total').textContent = 'Total: ' + fmtBytes(data.tx_total);
+
+      // Push into live ring-buffer
+      const live = historyStore.live;
+      live.labels.shift(); live.labels.push('');
+      live.rx.shift();     live.rx.push(data.rx_sec);
+      live.tx.shift();     live.tx.push(data.tx_sec);
+
+      if (currentRange === 'live') {
+        chart.data.labels           = [...live.labels];
+        chart.data.datasets[0].data = [...live.rx];
+        chart.data.datasets[1].data = [...live.tx];
+        chart.update('none');
+      }
+    } catch (e) { console.error('fetchNetwork:', e); }
+  }
+
+  // ── Boot ───────────────────────────────────────────────────────
+  fetchSystem();
+  fetchNetwork();
+  setInterval(fetchSystem,  3000);
+  setInterval(fetchNetwork, 2000);
+</script>
+</body>
+</html>

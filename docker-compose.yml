@@ -1,0 +1,22 @@
+services:
+  purrmetrics:
+    image: node:20-alpine
+    container_name: purrmetrics
+    restart: unless-stopped
+    working_dir: /app
+    volumes:
+      - .:/app
+      - ./data:/app/data
+    command: sh -c "npm install --omit=dev && node server.js"
+    environment:
+      - PORT=3000
+      - VIRTUAL_HOST=stats.yourdomain.com
+      - VIRTUAL_PORT=3000
+    expose:
+      - "3000"
+    networks:
+      - nginx-proxy_default
+
+networks:
+  nginx-proxy_default:
+    external: true
