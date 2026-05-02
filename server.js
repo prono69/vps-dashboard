@@ -181,6 +181,6 @@ app.get('/api/bandwidth/:range', (req, res) => {
   res.json(data);
 });
 
-app.listen(PORT, () => {
-  console.log(`🐾 PurrMetrics v2 running at http://localhost:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🐾 PurrMetrics v2 running at http://0.0.0.0:${PORT}`);
 });
