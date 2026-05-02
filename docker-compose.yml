@@ -4,12 +4,10 @@ services:
     container_name: purrmetrics
     restart: unless-stopped
     working_dir: /app
-    # Fix 1: Connect directly to the VPS network to see all bandwidth
     network_mode: "host" 
     volumes:
       - .:/app
       - ./data:/app/data
-      # Fix 2: Mount host files to show the real OS (Ubuntu/Debian) instead of Alpine
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
       - /etc/os-release:/etc/os-release:ro
@@ -19,4 +17,3 @@ services:
       - PORT=3000
       # Tells the library where to look for the real system stats
       - HOST_PROC=/host/proc
-    # networks:  <-- This section is removed because 'host' mode doesn't use Docker bridges
